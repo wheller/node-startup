@@ -12,6 +12,7 @@ LOG_DIR="$APP_DIR/log"
 LOG_FILE="$LOG_DIR/app.log"
 NODE_EXEC=$(which node)
 APP_NAME="Node app"
+RESTART_SIGHUP=false
 
 ###############
 
@@ -25,7 +26,7 @@ APP_NAME="Node app"
 # Required-Stop:     $network $remote_fs $local_fs
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: start and stop node
+# Short-Description: start and stop node app
 # Description: Node process for app
 ### END INIT INFO
 
@@ -61,7 +62,13 @@ start_it() {
 stop_process() {
     PID=$(get_pid)
     echo "Killing process $PID"
-    pkill -P $PID
+    kill $PID
+}
+
+sighup_process() {
+    PID=$(get_pid)
+    echo "Sending HUP to process $PID"
+    kill -1 $PID
 }
 
 remove_pid_file() {
@@ -117,6 +124,29 @@ stop_app() {
     fi
 }
 
+restart_app() {
+    if [ "$RESTART_SIGHUP" != true ] || [ $FORCE_OP = true ]
+    then
+        stop_app
+        start_app
+    else
+        if pid_file_exists
+        then
+            if is_running
+            then
+                sighup_process
+            else
+                echo "$APP_NAME does not appear to be running, removing stale PID file and starting app"
+                remove_pid_file
+                start_app
+            fi
+        else
+            echo "$APP_NAME PID file does not exist, starting"
+            start_app
+        fi
+    fi
+}
+
 status_app() {
     if pid_file_exists
     then
@@ -156,8 +186,7 @@ case "$1" in
     ;;
 
     restart)
-        stop_app
-        start_app
+        restart_app
     ;;
 
     status)
